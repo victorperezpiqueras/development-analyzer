@@ -1,0 +1,7 @@
+numpy
+requests
+matplotlib
+pandas
+python-dotenv
+pyairtable
+scipy

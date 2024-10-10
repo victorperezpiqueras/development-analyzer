@@ -1,0 +1,59 @@
+service: development-analyzer
+
+package:
+  patterns:
+    - "!./**"
+    - "development_analyzer/**"
+    - "serverless_resources/**"
+
+custom:
+  error_email: ${file(./serverless_resources/.env.json):error_email}
+  senderEmail: ${file(./serverless_resources/.env.json):sender_email}
+  projects: ${file(./serverless_resources/.env.json):projects}
+  stage: ${opt:stage, self:provider.stage, 'dev'}
+  s3Bucket: ${self:service}-${self:custom.stage}-bucket
+
+provider:
+  name: aws
+  runtime: python3.10
+  region: eu-west-1
+  environment:
+    ERROR_EMAIL: ${self:custom.error_email}
+    SENDER_EMAIL: ${self:custom.senderEmail}
+    PROJECTS: ${self:custom.projects}
+    S3_BUCKET: ${self:custom.s3Bucket}
+  ecr:
+    images:
+      developmentanalyzer:
+        path: ./
+        file: ./serverless_resources/Dockerfile
+        platform: linux/amd64
+
+  iam:
+    role:
+      statements:
+        - Effect: "Allow"
+          Action:
+            - "ses:SendRawEmail"
+          Resource: "*"
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+          Resource: "arn:aws:s3:::${self:custom.s3Bucket}/*"
+
+functions:
+  emailSender:
+    timeout: 300
+    memorySize: 1024
+    image:
+      name: developmentanalyzer
+    events:
+      # every monday at 7/8am (depends on +1/+2 UTC)
+      - schedule: cron(0 6 ? * MON *)
+
+resources:
+  Resources:
+    S3Bucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:custom.s3Bucket}
